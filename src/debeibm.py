@@ -1,53 +1,29 @@
 ### Imports ###
 import numpy as np
-from test_individual__ import Individual
+from individual import Individual
 import math
 from numba import jit
-from scipy.integrate import solve_ivp
 import pandas as pd
+from scipy.integrate import solve_ivp
 from tqdm import tqdm
-from matplotlib.animation import FuncAnimation
-from matplotlib import colors
-import matplotlib.pyplot as plt
-
-#%%
-def plot_occupant_clip(grids, total_time, fps):
-    '''
-    Plots a clip of the spatial distribution of individuals in grids for total_time frames with a frame rate of fps.
-    '''
-    fig, ax = plt.subplots()
-    ca_plot = ax.imshow(grids['occupant'][0,:,:], cmap=colors.ListedColormap(['k','y','r','b']), vmin=0, vmax=3) #cmap='Reds', vmin=0, vmax=5)#cmap=colors.ListedColormap(['k','y','r','b']), vmin=0, vmax=3)
-    
-    def animation_func(frame_num):
-        ca_plot.set_data(grids['occupant'][frame_num,:,:])
-        return ca_plot
-    
-    
-    anim = FuncAnimation(fig, animation_func, frames=total_time, interval=fps)
-    plt.show()
-    return anim
-        
-#%%
-def plot_food_clip(grids, total_time, fps):
-    '''
-    Plots a clip of the spatial distribution of food in grids for total_time frames with a frame rate of fps.
-    '''
-    fig,ax = plt.subplots()
-    ca_plot = ax.imshow(grids['food'][0,:,:], vmin=0, vmax=np.max(grids["food"]))#cmap=colors.ListedColormap(['k','y','r','b']), vmin=0, vmax=3)
-    
-    def animation_func(i):
-        ca_plot.set_data(grids['food'][i,:,:])
-        return ca_plot
-    
-    anim = FuncAnimation(fig, animation_func, frames=total_time, interval=fps)
-    plt.show()
-    return anim
 
 #%%
 @jit(nopython=True)
 def beta0(x0, x1):
     '''
     Calculates the integral of the function beta(x) from x0 to x1.
+
+    Parameters
+    ----------
+    x0 : float
+        Lower bound of the integral.
+    x1 : float
+        Upper bound of the integral.
+
+    Returns
+    -------
+    float
+        Integral of the function beta(x) from x0 to x1.
     '''
     x03 = x0**(1/ 3)
     x13 = x1**(1/ 3)
@@ -64,6 +40,18 @@ def init_reserve_DEB(DEB_p, f_resp):
     '''
     Calculates the initial reserve of an individual based on its DEB parameters and the functional response experienced by its parent or the reserve density of the parent.
     We use the Newton-Raphson method to find the scaled length at birth, similar to the get_lb function in DEBtool.
+
+    Parameters
+    ----------
+    DEB_p : array-like
+        Array of DEB parameters of the individual.
+    f_resp : float
+        Functional response experienced by the parent of the individual.
+
+    Returns
+    -------
+    float
+        Initial reserve of the individual.
     '''
     
     # Unpack the parameters of the individual
@@ -1179,6 +1167,30 @@ def reach_death(t, y, DEB_p, temperature):
 
     '''
     return y[1]
+
+@eventAttr(True, -1)
+def reach_food_empty(t, y, DEB_p, temperature):
+    '''
+    Event function that stops the ode solver when the food source is empty, defined as X < 0.
+
+    Parameters
+    ----------
+    t : float
+        Time.
+    y : list
+        List of state variables.
+    DEB_p : list
+        List of DEB parameters.
+    temperature : float
+        Temperature.
+
+    Returns
+    -------
+    float
+        X, to stop the ode solver when X < 0
+
+    '''
+    return y[6]
 
 @eventAttr(False, 1)
 def empty_event(t, y, DEB_p, temperature):
@@ -3200,7 +3212,7 @@ def pop2df(population, df, t):
     '''
     for individual in population:
         entry = {'timestep': t, 'id': individual.id, 'age': individual.age, 'stage':  individual.stage, 'L': individual.L, 'E': individual.E, 'R': individual.R, 'fecundity': individual.fecundity, 'potential_fecundity' : individual.potential_fecundity, 'H': individual.H, 'E_0': individual.init_E, 'starved': individual.starved, 'generation': individual.generation, 'time_spent_handling': individual.time_spent_handling, 'time_spent_searching': individual.time_spent_searching, 'ingested': individual.ingested, 'f_resp_5min': individual.f_resp_5min, 'p_Am': individual.p_Am*individual.pAm_p_scatter, 'x_pos': individual.current_pos[0], 'y_pos': individual.current_pos[1], 'neighbours': individual.neighbours}
-        df = df.append(entry, ignore_index=True)
+        df = pd.concat([df, pd.DataFrame(entry, index=[0])], ignore_index=True)
     return df
 
 def countpop(grid):
